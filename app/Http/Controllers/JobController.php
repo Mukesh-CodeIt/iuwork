@@ -53,8 +53,40 @@ class JobController extends Controller
         $job_users = DB::table('user_jobs')
         ->insert(['user_id' => JWTAuth::user()->id, 'job_id' => $job_id]);
 
-        return response()->json(['success' => true, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_users' => $job_users], 200);
+        if($request->hasFile('image')){
+          $files = $request->file('image');
+          $result = $this->upload_job_files($job_id, $files);
+          return response()->json(['uploaded' => $result, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_users' => $job_users], 200);
+        }else {
+          return response()->json(['success' => true, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_users' => $job_users], 200);
+        }
+
       }
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
+  public function upload_job_files($job_id, $files) {
+    try{
+        foreach ($files as $key => $file) {
+          if(!$file->isValid()) {
+              return response()->json(['file_not_uploaded'], 400);
+          }else {
+            $upload = $file->store('uploads', 'public');
+            $images_path[] = $upload;
+            $filename = $file->getClientOriginalName();
+            $images[] = $filename;
+
+            $uploaded = DB::table('job_files')->insert([
+              'job_id' => $job_id,
+              'file_name' => $filename,
+              'file_url' => $upload,
+              'created_date' => date("Y-m-d H:i:s")
+            ]);
+          }
+        }
+        return response()->json(['success' => $uploaded],200);
     } catch (JWTException $e) {
         return response()->json(['error' => 'Could not create token'], 500);
     }
@@ -157,8 +189,19 @@ class JobController extends Controller
           ->where('users.id','=',$value->user_id)
           ->get();
           $value->user_skills = $user_skills;
-        }
 
+          $job_files = DB::table('job_files')
+          ->leftjoin('jobs', 'job_files.job_id', '=', 'jobs.id')
+          ->select(
+            'job_files.id',
+            'job_files.job_id',
+            'job_files.file_name',
+            'job_files.file_url'
+          )
+          ->where('job_files.job_id', '=', $value->job_id)
+          ->get();
+          $value->job_files = $job_files;
+        }
 
         return response()->json($jobs, 200);
       }

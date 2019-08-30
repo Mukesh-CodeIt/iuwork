@@ -22,7 +22,8 @@ class CreateUsersTable extends Migration
             $table->string('email')->unique();
             $table->string('password')->nullable();
             $table->string('gender')->nullable();
-            $table->string('image')->nullable();
+            $table->string('image_name')->nullable();
+            $table->string('image_url')->nullable();
             $table->enum('status',['activated', 'deactivated'])->default('activated');
             $table->enum('type',['employer', 'employee'])->nullable();
             $table->enum('visibility',['visible', 'invisible'])->default('visible');

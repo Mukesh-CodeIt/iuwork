@@ -20,6 +20,7 @@ class CreateJobFilesTable extends Migration
             $table->foreign('job_id')->references('id')->on('jobs')->onDelete('cascade')->onUpdate('cascade');
             $table->string('file_name')->nullable();
             $table->string('file_url')->nullable();
+            $table->datetime('created_date')->nullable();
             $table->timestamps();
         });
     }

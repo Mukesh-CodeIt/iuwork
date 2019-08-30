@@ -124,6 +124,41 @@ class UserController extends Controller
         // }
       }
 
+      public function upload_user_profile_image(Request $request){
+        try{
+
+          $validator = Validator::make($request->all(),
+            [
+              'user_id' => 'required',
+              'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg'
+            ]
+          );
+
+          if($validator->fails()){
+            return response()->json($validator->errors());
+          }
+          else {
+            $file = $request->file('image');
+            if(!$request->hasFile('image') && !$file->isValid()) {
+                return response()->json(['uploaded_file_has_issue'], 400);
+            }else {
+              $upload = $file->store('profile_images', 'public');
+              $filename = $file->getClientOriginalName();
+
+              $user = User::find($request->user_id);
+              $user->image_name = $filename;
+              $user->image_url = $upload;
+              $user->last_updated_by = JWTAuth::user()->id;
+              $user->last_updated_date = date("Y-m-d H:i:s");
+              $user->save();
+            }
+            return response()->json(['message' => 'Profile Image Uploaded Successfully', 'user' => $user], 200);
+          }
+        } catch (JWTException $e) {
+            return response()->json(['error' => 'Could not create token'], 500);
+        }
+      }
+
       public function get_user($id){
         $user = User::find($id);
         if(JWTAuth::user()->id != $id && JWTAuth::user()->role_id === 1){

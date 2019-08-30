@@ -24,13 +24,14 @@ Route::post('login', 'User\AuthController@authenticate');
 Route::group(['middleware' => ['jwt.auth']], function() {
   Route::get('logout', 'User\AuthController@logout');
   Route::get('get_user/{id}', 'User\UserController@get_user');
-  Route::put('update_user/{id}', 'User\UserController@update_user');
+  Route::post('update_user/{id}', 'User\UserController@update_user');
   Route::put('delete_user/{id}', 'User\UserController@delete_user');
   Route::put('deactivate_user/{id}', 'User\UserController@deactivate_user');
   Route::put('activate_user/{id}', 'User\UserController@activate_user');
   Route::put('visible_user/{id}', 'User\UserController@visible_user');
   Route::put('invisible_user/{id}', 'User\UserController@invisible_user');
   Route::get('all_users', 'User\UserController@getAllUsers');
+  Route::post('upload_user_profile_image', 'User\UserController@upload_user_profile_image');
 
   Route::get('all_skills', 'SkillController@all_skills');
   Route::get('get_skills_by_category/{id}', 'SkillController@get_skills_by_category');
