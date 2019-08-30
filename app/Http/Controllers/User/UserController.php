@@ -322,15 +322,25 @@ class UserController extends Controller
               'blocked_date' => date("Y-m-d H:i:s")
             ]);
 
-            $block_notification = DB::table('notifications')->insert([
-              'notify_user_id' => $request->blocked_user_id,
-              'data' => 'You have been blocked by ' .ucfirst(strtolower($block_by->name)).' '.ucfirst(strtolower($block_by->type)),
-              'notify_status' => 'delivered',
-              'notify_type' => 'Users Block',
-              'notify_date' => date("Y-m-d H:i:s")
-            ]);
+            $user_unfollow_each = DB::table('user_followers')->where('followed_user_id','=',$request->block_by_user_id)->where('follower_user_id','=',$request->blocked_user_id)->delete();
+            $user_unfollow_other = DB::table('user_followers')->where('followed_user_id','=',$request->blocked_user_id)->where('follower_user_id','=',$request->block_by_user_id)->delete();
 
-            return response()->json(['success' => true, 'message' => 'Blocked Successfully', 'user_block' => $user_block, 'block_notification' => $block_notification], 200);
+            // $block_notification = DB::table('notifications')->insert([
+            //   'notify_user_id' => $request->blocked_user_id,
+            //   'data' => 'You have been blocked by ' .ucfirst(strtolower($block_by->name)).' '.ucfirst(strtolower($block_by->type)),
+            //   'notify_status' => 'delivered',
+            //   'notify_type' => 'Users Block',
+            //   'notify_date' => date("Y-m-d H:i:s")
+            // ]);
+
+            return response()->json([
+              'success' => true,
+              'message' => 'Blocked Successfully',
+              'user_block' => $user_block,
+              // 'block_notification' => $block_notification,
+              'user_unfollow_each' => $user_unfollow_each,
+              'user_unfollow_other' => $user_unfollow_other
+            ], 200);
           }
         } catch (JWTException $e) {
             return response()->json(['error' => 'Could not create token'], 500);
@@ -391,6 +401,9 @@ class UserController extends Controller
             return response()->json($validator->errors());
           }
           else {
+              if(!$request->hasFile('image') && $request->message_text == ""){
+                return response()->json(['success' => false, 'message' => 'please insert some text or file to send message'],400);
+              }
               $message_id = DB::table('messages')->insertGetId([
                 'user_from_id' => $request->user_from_id,
                 'user_to_id' => $request->user_to_id,
@@ -400,9 +413,9 @@ class UserController extends Controller
               if($request->hasFile('image')){
                 $files = $request->file('image');
                 $result = $this->upload_message_files($message_id, $files);
-                return response()->json(['uploaded' => $result, 'message_id' => $message_id],200);
+                return response()->json(['uploaded' => $result, 'message_id' => $message_id, 'message_text' => $request->message_text],200);
               }else {
-                return response()->json(['success' => true, 'message_id' => $message_id],200);
+                return response()->json(['success' => true, 'message_id' => $message_id, 'message_text' => $request->message_text],200);
               }
           }
         } catch (JWTException $e) {
@@ -475,8 +488,6 @@ class UserController extends Controller
                 'message_files.file_name',
                 'message_files.file_url'
               )
-              // ->where('messages.user_from_id', '=', $value->user_from_id)
-              // ->where('messages.user_to_id', '=', $value->user_to_id)
               ->where('message_files.message_id', '=', $value->id)
               ->get();
               $value->message_files = $message_files;
@@ -509,8 +520,6 @@ class UserController extends Controller
                 'message_files.file_name',
                 'message_files.file_url'
               )
-              // ->where('messages.user_from_id', '=', $value->user_to_id)
-              // ->where('messages.user_to_id', '=', $value->user_from_id)
               ->where('message_files.message_id', '=', $value->id)
               ->get();
               $value->message_files = $message_files;
