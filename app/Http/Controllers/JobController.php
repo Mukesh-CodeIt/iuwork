@@ -168,6 +168,8 @@ class JobController extends Controller
           'skills.skill_status as skill_status',
           'users.id as user_id',
           'users.name as user_name',
+          'users.image_name as user_image_name',
+          'users.image_url as user_image_url',
           'users.line_manager_name as user_line_manager_name',
           'users.business_name as user_business_name',
           'users.address_1 as user_address_1',
@@ -182,6 +184,12 @@ class JobController extends Controller
         ->get();
 
         foreach ($jobs as $key => $value) {
+          $user_average_rating = DB::table('feedbacks')
+          ->select(DB::raw('AVG(total_ratings) as total_ratings'))
+          ->where('feedbacks.user_to_id', '=', $value->user_id)
+          ->get();
+          $value->user_total_average_rating = round($user_average_rating[0]->total_ratings,1);
+
           $user_skills = DB::table('user_skills')
           ->leftjoin('users', 'user_skills.user_id', '=', 'users.id')
           ->leftjoin('skills', 'user_skills.skill_id', '=', 'skills.id')
@@ -212,6 +220,17 @@ class JobController extends Controller
 
   public function get_job($id){
     $job = DB::table('jobs')->where('id', '=', $id)->first();
+    $job_files = DB::table('job_files')
+    ->leftjoin('jobs', 'job_files.job_id', '=', 'jobs.id')
+    ->select(
+      'job_files.id',
+      'job_files.job_id',
+      'job_files.file_name',
+      'job_files.file_url'
+    )
+    ->where('job_files.job_id', '=', $id)
+    ->get();
+    $job->job_files = $job_files;
     return response()->json(['success' => true, 'job' => $job], 200);
   }
 
@@ -223,6 +242,8 @@ class JobController extends Controller
       $query = DB::table('jobs')
       ->leftjoin('user_jobs', 'jobs.id', '=', 'user_jobs.job_id')
       ->leftjoin('users', 'user_jobs.user_id', '=', 'users.id')
+      // ->leftjoin('blocked_users', 'blocked_users.user_from_id', '=', 'users.id')
+      // ->leftjoin('blocked_users', 'blocked_users.user_to_id', '=', 'users.id')
       ->leftjoin('job_skills', 'jobs.id', '=', 'job_skills.job_id')
       ->leftjoin('skills', 'job_skills.skill_id', '=', 'skills.id')
       ->leftjoin('categories', 'skills.category_id', '=', 'categories.id')
@@ -233,7 +254,6 @@ class JobController extends Controller
         'jobs.pay_rate_per_hour as job_pay_rate_per_hour',
         'jobs.job_start_time as job_start_time',
         'jobs.job_end_time as job_end_time',
-        'jobs.job_duration as job_duration',
         'jobs.job_posted_date as job_posted_date',
         'categories.id as category_id',
         'categories.category_name as category_name',
@@ -243,6 +263,8 @@ class JobController extends Controller
         'skills.skill_status as skill_status',
         'users.id as user_id',
         'users.name as user_name',
+        'users.image_name as user_image_name',
+        'users.image_url as user_image_url',
         'users.line_manager_name as user_line_manager_name',
         'users.business_name as user_business_name',
         'users.address_1 as user_address_1',
@@ -265,23 +287,85 @@ class JobController extends Controller
       $jobs = $query->where('jobs.job_status', '=', 'pending')
                     ->distinct()
                     ->orderBy('jobs.job_posted_date', 'DESC')
-                    ->get();
+                    ->get()->toArray();
 
       foreach ($jobs as $key => $value) {
-        $user_skills = DB::table('user_skills')
-        ->leftjoin('users', 'user_skills.user_id', '=', 'users.id')
-        ->leftjoin('skills', 'user_skills.skill_id', '=', 'skills.id')
-        ->select('skills.id as skill_id', 'skills.skill_name as skill_name')
-        ->where('users.id','=',$value->user_id)
+        $user_average_rating = DB::table('feedbacks')
+        ->select(DB::raw('AVG(total_ratings) as total_ratings'))
+        ->where('feedbacks.user_to_id', '=', $value->user_id)
         ->get();
-        $value->user_skills = $user_skills;
+        $value->user_total_average_rating = round($user_average_rating[0]->total_ratings,1);
+
+        // $user_skills = DB::table('user_skills')
+        // ->leftjoin('users', 'user_skills.user_id', '=', 'users.id')
+        // ->leftjoin('skills', 'user_skills.skill_id', '=', 'skills.id')
+        // ->select('skills.id as skill_id', 'skills.skill_name as skill_name')
+        // ->where('users.id','=',$value->user_id)
+        // ->get();
+        // $value->user_skills = $user_skills;
+        //
+        // $job_files = DB::table('job_files')
+        // ->leftjoin('jobs', 'job_files.job_id', '=', 'jobs.id')
+        // ->select(
+        //   'job_files.id',
+        //   'job_files.job_id',
+        //   'job_files.file_name',
+        //   'job_files.file_url'
+        // )
+        // ->where('job_files.job_id', '=', $value->job_id)
+        // ->get();
+        // $value->job_files = $job_files;
       }
 
+      $jobs_get = array();
 
-      return response()->json($jobs, 200);
+      $blocked = DB::table('blocked_users')
+      ->join('users', 'blocked_users.blocked_user_id', '=', 'users.id')
+      ->select('users.id as user_id', 'users.name as user_name')
+      ->where('block_by_user_id','=',$request->user_id)
+      ->get()->toArray();
+
+      $blocked_me = DB::table('blocked_users')
+      ->leftjoin('users', 'blocked_users.block_by_user_id', '=', 'users.id')
+      ->select('users.id as user_id', 'users.name as user_name')
+      ->where('blocked_user_id','=',$request->user_id)
+      ->get()->toArray();
+
+      $merged = array_merge($blocked, $blocked_me);
+      $result = $this->my_array_unique($merged);
+      $users = array_values(array_sort($result, function ($value) {
+        return $value->user_id;
+      }));
+
+      // foreach ($jobs as $key => $job) {
+      //   foreach ($users as $key => $user) {
+      //     if($job->user_id != $user->user_id){
+      //       $jobs_get[] = $job;
+      //     }
+      //   }
+      // }
+
+      return response()->json(['users_blocked' => $users, 'jobs' => $jobs], 200);
     } catch (JWTException $e) {
         return response()->json(['error' => 'Could not create token'], 500);
     }
+  }
+
+  public function my_array_unique($array, $keep_key_assoc = false){
+    $duplicate_keys = array();
+    $tmp = array();
+    foreach ($array as $key => $val){
+      if (is_object($val))
+        $val = (array)$val;
+      if (!in_array($val, $tmp))
+        $tmp[] = $val;
+      else
+        $duplicate_keys[] = $key;
+    }
+    foreach ($duplicate_keys as $key)
+      unset($array[$key]);
+
+    return $keep_key_assoc ? $array : array_values($array);
   }
 
   public function my_job_history(Request $request){

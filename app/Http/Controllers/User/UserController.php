@@ -396,12 +396,18 @@ class UserController extends Controller
       public function users_i_follow(Request $request){
         try {
           $following = DB::table('user_followers')
-          ->join('users', 'user_followers.followed_user_id', '=', 'users.id')
+          ->leftjoin('users', 'user_followers.followed_user_id', '=', 'users.id')
           ->select('users.id as user_id', 'users.name as user_name')
           ->where('follower_user_id','=',$request->user_id)
           ->get();
 
-          return response()->json(['success' => true, 'following' => $following], 200);
+          $followed_by = DB::table('user_followers')
+          ->leftjoin('users', 'user_followers.follower_user_id', '=', 'users.id')
+          ->select('users.id as user_id', 'users.name as user_name')
+          ->where('followed_user_id','=',$request->user_id)
+          ->get();
+
+          return response()->json(['success' => true, 'following' => $following, 'followed_by' => $followed_by], 200);
 
         } catch (JWTException $e) {
             return response()->json(['error' => 'Could not create token'], 500);
@@ -411,12 +417,17 @@ class UserController extends Controller
       public function users_i_block(Request $request){
         try {
           $blocked = DB::table('blocked_users')
-          ->join('users', 'blocked_users.blocked_user_id', '=', 'users.id')
+          ->leftjoin('users', 'blocked_users.blocked_user_id', '=', 'users.id')
           ->select('users.id as user_id', 'users.name as user_name')
           ->where('block_by_user_id','=',$request->user_id)
           ->get();
+          $blocked_me = DB::table('blocked_users')
+          ->leftjoin('users', 'blocked_users.block_by_user_id', '=', 'users.id')
+          ->select('users.id as user_id', 'users.name as user_name')
+          ->where('blocked_user_id','=',$request->user_id)
+          ->get();
 
-          return response()->json(['success' => true, 'blocked' => $blocked], 200);
+          return response()->json(['success' => true, 'blocked_by_me' => $blocked, 'blocked_me' => $blocked_me], 200);
 
         } catch (JWTException $e) {
             return response()->json(['error' => 'Could not create token'], 500);
@@ -573,4 +584,41 @@ class UserController extends Controller
             return response()->json(['error' => 'Could not create token'], 500);
         }
       }
+
+      public function store_feedback(Request $request) {
+        try {
+          $validator = Validator::make($request->all(),
+            [
+              'user_from_id' => 'required',
+              'user_to_id' => 'required'
+            ]
+          );
+
+          if($validator->fails()){
+            return response()->json($validator->errors());
+          }
+          else {
+            if($request->feedback_text == "" && $request->rating_one == "" && $request->rating_two == "" && $request->rating_three == "" && $request->rating_four == "" && $request->rating_five == "")
+              return response()->json(['success' => false, 'message' => 'Please give some feedback and star ratings'], 400);
+            else
+              $array = array($request->rating_one, $request->rating_two, $request->rating_three, $request->rating_four, $request->rating_five);
+              $total_rating_avg = array_sum($array)/count($array);
+              $feedback_rating = DB::table('feedbacks')->insert([
+                'user_from_id' => $request->user_from_id,
+                'user_to_id' => $request->user_to_id,
+                'feedback_text' => $request->feedback_text,
+                'rating_one' => $request->rating_one,
+                'rating_two' => $request->rating_two,
+                'rating_three' => $request->rating_three,
+                'rating_four' => $request->rating_four,
+                'rating_five' => $request->rating_five,
+                'total_ratings' => $total_rating_avg,
+                'rating_date' => date("Y-m-d H:i:s")
+              ]);
+              return response()->json(['success' => true, 'feedback_rating' => $feedback_rating, 'total_rating_avg' => $total_rating_avg], 200);
+          }
+        } catch (JWTException $e) {
+            return response()->json(['error' => 'Could not create token'], 500);
+        }
     }
+  }

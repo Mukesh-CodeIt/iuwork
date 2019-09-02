@@ -21,12 +21,12 @@ class CreateFeedbacksTable extends Migration
             $table->unsignedBigInteger('user_to_id')->nullable();
             $table->foreign('user_to_id')->references('id')->on('users')->onDelete('cascade')->onUpdate('cascade');
             $table->text('feedback_text')->nullable();
-            $table->integer('rating_one')->nullable();
-            $table->integer('rating_two')->nullable();
-            $table->integer('rating_three')->nullable();
-            $table->integer('rating_four')->nullable();
-            $table->integer('rating_five')->nullable();
-            $table->integer('total_ratings')->nullable();
+            $table->integer('rating_one')->default(0);
+            $table->integer('rating_two')->default(0);
+            $table->integer('rating_three')->default(0);
+            $table->integer('rating_four')->default(0);
+            $table->integer('rating_five')->default(0);
+            $table->decimal('total_ratings', 8, 1)->default(0);
             $table->datetime('rating_date')->nullable();
             $table->timestamps();
         });

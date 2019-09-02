@@ -53,7 +53,6 @@ Route::group(['middleware' => ['jwt.auth']], function() {
 
   // Employee Profile
   Route::post('employee_apply_for_job', 'JobController@employee_apply_for_job');
-  Route::post('employee_apply_for_job', 'JobController@employee_apply_for_job');
   Route::get('find_work', 'JobController@find_work');
   Route::get('my_job_history', 'JobController@my_job_history');
   Route::get('job_started', 'JobController@job_started');
@@ -63,6 +62,7 @@ Route::group(['middleware' => ['jwt.auth']], function() {
   Route::get('users_i_block', 'User\UserController@users_i_block');
   Route::post('send_chat_message', 'User\UserController@send_chat_message');
   Route::get('get_messages', 'User\UserController@get_messages');
+  Route::post('store_feedback', 'User\UserController@store_feedback');
 
 
   Route::post('follow_user', 'User\UserController@follow_user');
