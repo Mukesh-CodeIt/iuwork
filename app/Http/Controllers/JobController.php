@@ -50,15 +50,15 @@ class JobController extends Controller
         $job_skills = DB::table('job_skills')
         ->insert(['skill_id' => $request->skill_id, 'job_id' => $job_id]);
 
-        $job_users = DB::table('user_jobs')
-        ->insert(['user_id' => JWTAuth::user()->id, 'job_id' => $job_id]);
+        $job_history = DB::table('job_history')
+        ->insert(['employer_user_id' => JWTAuth::user()->id, 'job_id' => $job_id, 'created_date' => date("Y-m-d H:i:s")]);
 
         if($request->hasFile('image')){
           $files = $request->file('image');
           $result = $this->upload_job_files($job_id, $files);
-          return response()->json(['uploaded' => $result, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_users' => $job_users], 200);
+          return response()->json(['uploaded' => $result, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_history' => $job_history], 200);
         }else {
-          return response()->json(['success' => true, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_users' => $job_users], 200);
+          return response()->json(['success' => true, 'message' => 'Job Posted Successfully', 'job_id' => $job_id, 'job_skills' => $job_skills, 'job_history' => $job_history], 200);
         }
 
       }
@@ -240,10 +240,9 @@ class JobController extends Controller
       $skill_id = $request->skill_id;
       $pay_rate_per_hour = $request->pay_rate_per_hour;
       $query = DB::table('jobs')
-      ->leftjoin('user_jobs', 'jobs.id', '=', 'user_jobs.job_id')
-      ->leftjoin('users', 'user_jobs.user_id', '=', 'users.id')
-      // ->leftjoin('blocked_users', 'blocked_users.user_from_id', '=', 'users.id')
-      // ->leftjoin('blocked_users', 'blocked_users.user_to_id', '=', 'users.id')
+      ->leftjoin('job_history', 'jobs.id', '=', 'job_history.job_id')
+      ->leftjoin('users as employer', 'job_history.employer_user_id', '=', 'employer.id')
+      ->leftjoin('users as employee', 'job_history.employee_user_id', '=', 'employee.id')
       ->leftjoin('job_skills', 'jobs.id', '=', 'job_skills.job_id')
       ->leftjoin('skills', 'job_skills.skill_id', '=', 'skills.id')
       ->leftjoin('categories', 'skills.category_id', '=', 'categories.id')
@@ -261,16 +260,26 @@ class JobController extends Controller
         'skills.id as skill_id',
         'skills.skill_name as skill_name',
         'skills.skill_status as skill_status',
-        'users.id as user_id',
-        'users.name as user_name',
-        'users.image_name as user_image_name',
-        'users.image_url as user_image_url',
-        'users.line_manager_name as user_line_manager_name',
-        'users.business_name as user_business_name',
-        'users.address_1 as user_address_1',
-        'users.address_2 as user_address_2',
-        'users.geo_latitude as user_geo_latitude',
-        'users.geo_longitude as user_geo_longitude'
+        'employer.id as employer_user_id',
+        'employer.name as employer_user_name',
+        'employer.image_name as employer_user_image_name',
+        'employer.image_url as employer_user_image_url',
+        'employer.line_manager_name as employer_user_line_manager_name',
+        'employer.business_name as employer_user_business_name',
+        'employer.address_1 as employer_user_address_1',
+        'employer.address_2 as employer_user_address_2',
+        'employer.geo_latitude as employer_user_geo_latitude',
+        'employer.geo_longitude as employer_user_geo_longitude',
+        'employee.id as employee_user_id',
+        'employee.name as employee_user_name',
+        'employee.image_name as employee_user_image_name',
+        'employee.image_url as employee_user_image_url',
+        'employee.line_manager_name as employee_user_line_manager_name',
+        'employee.business_name as employee_user_business_name',
+        'employee.address_1 as employee_user_address_1',
+        'employee.address_2 as employee_user_address_2',
+        'employee.geo_latitude as employee_user_geo_latitude',
+        'employee.geo_longitude as employee_user_geo_longitude'
       );
 
       if($category_id != ""){
@@ -292,32 +301,30 @@ class JobController extends Controller
       foreach ($jobs as $key => $value) {
         $user_average_rating = DB::table('feedbacks')
         ->select(DB::raw('AVG(total_ratings) as total_ratings'))
-        ->where('feedbacks.user_to_id', '=', $value->user_id)
+        ->where('feedbacks.user_to_id', '=', $value->employer_user_id)
         ->get();
-        $value->user_total_average_rating = round($user_average_rating[0]->total_ratings,1);
+        $value->employer_user_total_average_rating = round($user_average_rating[0]->total_ratings,1);
 
-        // $user_skills = DB::table('user_skills')
-        // ->leftjoin('users', 'user_skills.user_id', '=', 'users.id')
-        // ->leftjoin('skills', 'user_skills.skill_id', '=', 'skills.id')
-        // ->select('skills.id as skill_id', 'skills.skill_name as skill_name')
-        // ->where('users.id','=',$value->user_id)
-        // ->get();
-        // $value->user_skills = $user_skills;
-        //
-        // $job_files = DB::table('job_files')
-        // ->leftjoin('jobs', 'job_files.job_id', '=', 'jobs.id')
-        // ->select(
-        //   'job_files.id',
-        //   'job_files.job_id',
-        //   'job_files.file_name',
-        //   'job_files.file_url'
-        // )
-        // ->where('job_files.job_id', '=', $value->job_id)
-        // ->get();
-        // $value->job_files = $job_files;
+        $user_skills = DB::table('user_skills')
+        ->leftjoin('users', 'user_skills.user_id', '=', 'users.id')
+        ->leftjoin('skills', 'user_skills.skill_id', '=', 'skills.id')
+        ->select('skills.id as skill_id', 'skills.skill_name as skill_name')
+        ->where('users.id','=',$value->employer_user_id)
+        ->get();
+        $value->user_skills = $user_skills;
+
+        $job_files = DB::table('job_files')
+        ->leftjoin('jobs', 'job_files.job_id', '=', 'jobs.id')
+        ->select(
+          'job_files.id',
+          'job_files.job_id',
+          'job_files.file_name',
+          'job_files.file_url'
+        )
+        ->where('job_files.job_id', '=', $value->job_id)
+        ->get();
+        $value->job_files = $job_files;
       }
-
-      $jobs_get = array();
 
       $blocked = DB::table('blocked_users')
       ->join('users', 'blocked_users.blocked_user_id', '=', 'users.id')
@@ -337,15 +344,23 @@ class JobController extends Controller
         return $value->user_id;
       }));
 
-      // foreach ($jobs as $key => $job) {
-      //   foreach ($users as $key => $user) {
-      //     if($job->user_id != $user->user_id){
-      //       $jobs_get[] = $job;
-      //     }
-      //   }
-      // }
+      $tmpArray = array();
+      if(count($users) > 0){
+        foreach($jobs as $data1) {
+          $duplicate = false;
+          foreach($users as $data2) {
+            if($data1->employer_user_id === $data2->user_id)
+              $duplicate = true;
+          }
+          if($duplicate === false)
+            $tmpArray[] = $data1;
+        }
+      }else {
+        $tmpArray = $jobs;
+      }
 
-      return response()->json(['users_blocked' => $users, 'jobs' => $jobs], 200);
+      $jobs = $tmpArray;
+      return response()->json($jobs, 200);
     } catch (JWTException $e) {
         return response()->json(['error' => 'Could not create token'], 500);
     }
