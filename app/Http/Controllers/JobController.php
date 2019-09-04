@@ -92,6 +92,207 @@ class JobController extends Controller
     }
   }
 
+  public function store_job_application(Request $request){
+    try {
+      $validator = Validator::make($request->all(),
+        [
+          'employee_user_id' => 'required',
+          'job_id' => 'required'
+        ]
+      );
+
+      if($validator->fails()){
+        return response()->json($validator->errors());
+      }
+      else {
+        $job_application_check = DB::table('job_applications')->where('employee_user_id', '=', $request->employee_user_id)->where('job_id', '=', $request->job_id)->first();
+        if($job_application_check){
+          return response()->json(['success' => false, 'message' => 'Already applied for this job'], 400);
+        }else {
+          $job_application = DB::table('job_applications')->insertGetId([
+            'employee_user_id' => $request->employee_user_id,
+            'job_id' => $request->job_id,
+            'employee_applied_date' => date("Y-m-d H:i:s"),
+            'created_date' => date("Y-m-d H:i:s")
+          ]);
+        }
+      }
+
+      return response()->json(['success' => true, 'message' => 'Job Applied Successfully', 'job_application' => $job_application], 200);
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
+  public function get_job_applications(Request $request){
+    try {
+      $validator = Validator::make($request->all(),
+        [
+          'employer_user_id' => 'required'
+        ]
+      );
+
+      if($validator->fails()){
+        return response()->json($validator->errors());
+      }
+      else {
+        $job_applications = DB::table('jobs')
+        ->leftjoin('job_history', 'jobs.id', '=', 'job_history.job_id')
+        ->leftjoin('job_applications', 'jobs.id', '=', 'job_applications.job_id')
+        ->leftjoin('users as employer', 'job_history.employer_user_id', '=', 'employer.id')
+        ->leftjoin('users as employee', 'job_applications.employee_user_id', '=', 'employee.id')
+        ->select(
+          'jobs.id as job_id',
+          'jobs.job_title',
+          'jobs.job_status as job_status',
+          'employer.id as employer_user_id',
+          'employer.name as employer_user_name',
+          'employee.id as employee_user_id',
+          'employee.name as employee_user_name',
+          'job_applications.id as job_application_id',
+          'job_applications.employee_applied_date',
+          'job_applications.job_application_status',
+          'job_history.job_history_status'
+          )
+        ->where('job_history.employer_user_id', '=', $request->employer_user_id)
+        ->where('jobs.job_status', '=', 'pending')
+        ->where('job_history.job_history_status', '=', null)
+        ->where('job_applications.job_application_status', '=', 'applied')
+        ->orderBy('job_applications.employee_applied_date', 'DESC')
+        ->get()->toArray();
+      }
+
+      return response()->json($job_applications, 200);
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
+  public function update_job_application(Request $request){
+    try {
+      $validator = Validator::make($request->all(),
+        [
+          'job_application_id' => 'required'
+        ]
+      );
+
+      if($validator->fails()){
+        return response()->json($validator->errors());
+      }
+      else {
+        $job_application = DB::table('job_applications')->where('id', '=', $request->job_application_id)->first();
+        if($job_application){
+          $job_application_updated = DB::table('job_applications')
+          ->where('id','=',$job_application->id)
+          ->update([
+            'job_application_status' => 'accepted',
+            'employer_accepted_date' => date("Y-m-d H:i:s"),
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+
+          $job_history_updated = DB::table('job_history')
+          ->where('job_id','=',$job_application->job_id)
+          ->update([
+            'job_history_status' => 'assigned',
+            'employee_user_id' => $job_application->employee_user_id,
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+
+          $job_updated = DB::table('jobs')
+          ->where('id','=',$job_application->job_id)
+          ->update([
+            'job_status' => 'in-progress',
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+        }else {
+          return response()->json(['success' => false, 'message' => 'Not available'], 400);
+        }
+      }
+
+      return response()->json(['success' => true, 'message' => 'Job application updated successfully', 'job_application_updated' => $job_application_updated, 'job_history_updated' => $job_history_updated, 'job_updated' => $job_updated], 200);
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
+  public function update_job_actual_started_time(Request $request){
+    try {
+      $validator = Validator::make($request->all(),
+        [
+          'job_id' => 'required'
+        ]
+      );
+
+      if($validator->fails()){
+        return response()->json($validator->errors());
+      }
+      else {
+        $job = DB::table('job_history')->where('job_id', '=', $request->job_id)->first();
+
+        if($job && $job->job_actual_started_date === null && $job->job_history_status === 'assigned'){
+          $job_actual_started_date_updated = DB::table('job_history')
+          ->where('job_id','=',$job->job_id)
+          ->update([
+            'job_actual_started_date' => date("Y-m-d H:i:s"),
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+        }else {
+          return response()->json(['success' => false, 'message' => 'Not available'], 400);
+        }
+      }
+
+      return response()->json(['success' => true, 'message' => 'Job actual started date updated successfully', 'job_actual_started_date_updated' => $job_actual_started_date_updated], 200);
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
+  public function update_job_actual_finished_time(Request $request){
+    try {
+      $validator = Validator::make($request->all(),
+        [
+          'job_id' => 'required'
+        ]
+      );
+
+      if($validator->fails()){
+        return response()->json($validator->errors());
+      }
+      else {
+        $job = DB::table('job_history')->where('job_id', '=', $request->job_id)->first();
+
+        if(($job && $job->job_history_status === 'assigned') && ($job->job_actual_started_date !== null && $job->job_actual_finished_date === null)){
+          $job_actual_finished_date_updated = DB::table('job_history')
+          ->where('job_id','=',$job->job_id)
+          ->update([
+            'job_actual_finished_date' => date("Y-m-d H:i:s"),
+            'job_history_status' => 'delivered',
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+
+          $job_status_updated = DB::table('jobs')
+          ->where('id','=',$job->job_id)
+          ->update([
+            'job_status' => 'completed',
+            'last_updated_by' => JWTAuth::user()->id,
+            'last_updated_date' => date("Y-m-d H:i:s")
+          ]);
+        }else {
+          return response()->json(['success' => false, 'message' => 'Not available'], 400);
+        }
+      }
+
+      return response()->json(['success' => true, 'message' => 'Job actual finished date updated successfully', 'job_actual_finished_date_updated' => $job_actual_finished_date_updated, 'job_status_updated' => $job_status_updated], 200);
+    } catch (JWTException $e) {
+        return response()->json(['error' => 'Could not create token'], 500);
+    }
+  }
+
   public function update_job(Request $request, $id){
     try {
       $validator = Validator::make($request->all(),
@@ -386,11 +587,13 @@ class JobController extends Controller
   public function my_job_history(Request $request){
     try{
       $history_jobs = DB::table('jobs')
-      ->leftjoin('user_jobs', 'jobs.id', '=', 'user_jobs.job_id')
-      ->leftjoin('users', 'user_jobs.user_id', '=', 'users.id')
+      ->leftjoin('job_history', 'jobs.id', '=', 'job_history.job_id')
+      ->leftjoin('users as employer', 'job_history.employer_user_id', '=', 'employer.id')
+      ->leftjoin('users as employee', 'job_history.employee_user_id', '=', 'employee.id')
       ->select('jobs.*','users.id as user_id', 'users.name as user_name')
       ->where('jobs.job_status','!=', 'pending')
-      ->where('users.id','=', $request->user_id)
+      ->whereIn('job_history.job_history_status','=', ['assigned','delivered'])
+      ->where('employer.employer_user_id','=', $request->user_id)
       ->get();
 
       return response()->json($history_jobs, 200);
@@ -404,8 +607,7 @@ class JobController extends Controller
       $validator = Validator::make($request->all(),
         [
           'job_id' => 'required',
-          'employee_user_id' => 'required',
-          'employer_user_id' => 'required'
+          'employee_user_id' => 'required'
         ]
       );
 
@@ -413,12 +615,10 @@ class JobController extends Controller
         return response()->json($validator->errors());
       }
       else {
-        $job_history = DB::table('job_history')->insertGetId([
-          'employer_user_id' => $request->employer_user_id,
+        $job_history = DB::table('job_applications')->insertGetId([
           'employee_user_id' => $request->employee_user_id,
           'job_id' => $request->job_id,
           'employee_applied_date' => date("Y-m-d H:i:s"),
-          'job_history_status' => 'applied',
           'created_date' => date("Y-m-d H:i:s")
         ]);
 

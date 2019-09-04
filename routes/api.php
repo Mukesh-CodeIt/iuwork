@@ -51,6 +51,12 @@ Route::group(['middleware' => ['jwt.auth']], function() {
   Route::put('update_job/{id}', 'JobController@update_job');
   Route::get('get_job/{id}', 'JobController@get_job');
 
+  Route::post('store_job_application', 'JobController@store_job_application');
+  Route::get('get_job_applications', 'JobController@get_job_applications');
+  Route::put('update_job_application', 'JobController@update_job_application');
+  Route::put('update_job_actual_started_time', 'JobController@update_job_actual_started_time');
+  Route::put('update_job_actual_finished_time', 'JobController@update_job_actual_finished_time');
+
   // Employee Profile
   Route::post('employee_apply_for_job', 'JobController@employee_apply_for_job');
   Route::get('find_work', 'JobController@find_work');
