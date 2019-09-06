@@ -263,7 +263,30 @@ class JobController extends Controller
         return response()->json($validator->errors());
       }
       else {
+        $job_data = DB::table('jobs')->where('id', '=', $request->job_id)->first();
+
+        $start_time = new DateTime($job_data->job_start_time);
+        $end_time = new DateTime($job_data->job_end_time);
+        $diff  = date_diff($start_time, $end_time);
+        $duration = $diff->h;
+
+        $amount = $job_data->pay_rate_per_hour * $duration;
         $job = DB::table('job_history')->where('job_id', '=', $request->job_id)->first();
+
+        $t=DB::table('transactions')
+                ->where(function($query) use ($job){
+                        $query->where('user_from_id',$job->employer_user_id)
+                        ->whereIn('transaction_type',['withdrawn','purchased']);
+                })->orWhere('user_to_id',$job->employee_user_id)
+                ->whereIn('transaction_type',['released','refund','deposited'])
+                ->orderBy('transaction_date','desc')
+                ->first();
+        if($t!=""){
+          $balance=$t->balance;
+        }
+        else{
+          $balance=0;
+        }
 
         if(($job && $job->job_history_status === 'assigned') && ($job->job_actual_started_date !== null && $job->job_actual_finished_date === null)){
           $job_actual_finished_date_updated = DB::table('job_history')
@@ -282,12 +305,28 @@ class JobController extends Controller
             'last_updated_by' => JWTAuth::user()->id,
             'last_updated_date' => date("Y-m-d H:i:s")
           ]);
+
+          $transaction_id = DB::table('transactions')->insertGetId([
+            'user_from_id' => $job->employer_user_id,
+            'user_to_id' => $job->employee_user_id,
+            'transaction_type' => 'deposited',
+            'amount' => $amount,
+            'balance' => $balance,
+            'transaction_date' => date("Y-m-d H:i:s")
+          ]);
+
+          $transaction_job = DB::table('job_transactions')->insert([
+            'job_id' => $job->job_id,
+            'transaction_id' => $transaction_id,
+            'created_date' => date("Y-m-d H:i:s")
+          ]);
+
         }else {
           return response()->json(['success' => false, 'message' => 'Not available'], 400);
         }
       }
 
-      return response()->json(['success' => true, 'message' => 'Job actual finished date updated successfully', 'job_actual_finished_date_updated' => $job_actual_finished_date_updated, 'job_status_updated' => $job_status_updated], 200);
+      return response()->json(['success' => true, 'message' => 'Job actual finished date updated successfully', 'job_actual_finished_date_updated' => $job_actual_finished_date_updated, 'job_status_updated' => $job_status_updated, 'transaction_id' => $transaction_id, 'transaction_job' => $transaction_job], 200);
     } catch (JWTException $e) {
         return response()->json(['error' => 'Could not create token'], 500);
     }

@@ -20,6 +20,7 @@ class CreateJobTransactionsTable extends Migration
             $table->foreign('job_id')->references('id')->on('jobs')->onDelete('cascade')->onUpdate('cascade');
             $table->unsignedBigInteger('transaction_id')->nullable();
             $table->foreign('transaction_id')->references('id')->on('transactions')->onDelete('cascade')->onUpdate('cascade');
+            $table->datetime('created_date')->nullable();
             $table->timestamps();
         });
     }
