@@ -109,12 +109,18 @@ class JobController extends Controller
         if($job_application_check){
           return response()->json(['success' => false, 'message' => 'Already applied for this job'], 400);
         }else {
-          $job_application = DB::table('job_applications')->insertGetId([
-            'employee_user_id' => $request->employee_user_id,
-            'job_id' => $request->job_id,
-            'employee_applied_date' => date("Y-m-d H:i:s"),
-            'created_date' => date("Y-m-d H:i:s")
-          ]);
+          $user = User::find($request->employee_user_id);
+          
+          if($user->type == "employer" || $user->role_id == 1){
+            return response()->json(['success' => false, 'message' => 'Only Employees can apply for this job'], 400);
+          }else {
+            $job_application = DB::table('job_applications')->insertGetId([
+              'employee_user_id' => $request->employee_user_id,
+              'job_id' => $request->job_id,
+              'employee_applied_date' => date("Y-m-d H:i:s"),
+              'created_date' => date("Y-m-d H:i:s")
+            ]);
+          }
         }
       }
 
@@ -276,9 +282,9 @@ class JobController extends Controller
         $t=DB::table('transactions')
                 ->where(function($query) use ($job){
                         $query->where('user_from_id',$job->employer_user_id)
-                        ->whereIn('transaction_type',['withdrawn','purchased']);
+                        ->whereIn('transaction_type',['withdrawn']);
                 })->orWhere('user_to_id',$job->employee_user_id)
-                ->whereIn('transaction_type',['released','refund','deposited'])
+                ->whereIn('transaction_type',['deposited'])
                 ->orderBy('transaction_date','desc')
                 ->first();
         if($t!=""){

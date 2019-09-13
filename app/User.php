@@ -13,6 +13,11 @@ class User extends Authenticatable implements JWTSubject
 
     protected $primaryKey='id';
 
+    public function role()
+    {
+        return $this->belongsTo('App\Role','role_id');
+    }
+
     /**
      * The attributes that are mass assignable.
      *
