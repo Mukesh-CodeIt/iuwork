@@ -63,7 +63,7 @@ Route::group(['middleware' => ['jwt.auth']], function() {
   Route::get('my_job_history', 'JobController@my_job_history');
   Route::get('job_started', 'JobController@job_started');
   Route::get('job_finished', 'JobController@job_finished');
-  Route::get('my_earnings', 'JobController@my_earnings');
+  Route::get('my_earnings', 'User\UserController@my_earnings');
   Route::get('users_i_follow', 'User\UserController@users_i_follow');
   Route::get('users_i_block', 'User\UserController@users_i_block');
   Route::post('send_chat_message', 'User\UserController@send_chat_message');

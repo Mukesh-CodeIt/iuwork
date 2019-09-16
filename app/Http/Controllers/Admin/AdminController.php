@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\User;
 use Illuminate\Http\Request;
+// use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -26,10 +28,37 @@ class AdminController extends Controller
       return view('admins.home');
     }
 
+    // protected function user() {
+    //   return JWTAuth::parseToken()->authenticate();
+    // }
+
     public function all_transactions(){
-      $transactions = DB::table('transactions')->orderBy('transaction_date', 'DESC')->get();
+      $transactions = DB::table('transactions')
+                      ->leftjoin('users as users_from', 'transactions.user_from_id', '=', 'users_from.id')
+                      ->leftjoin('users as users_to', 'transactions.user_to_id', '=', 'users_to.id')
+                      ->select(
+                        'transactions.id as transaction_id',
+                        'transactions.amount',
+                        'transactions.balance',
+                        'transactions.transaction_status',
+                        'transactions.transaction_type',
+                        'transactions.transaction_date',
+                        'users_from.id as user_from_id',
+                        'users_from.name as user_from_name',
+                        'users_to.id as user_to_id',
+                        'users_to.name as user_to_name'
+                        )
+                      ->orderBy('transaction_date', 'DESC')->get();
       return view('admins.transactions', compact('transactions'));
     }
+
+    // public function all_users(){
+    //   $dd = $this->user();
+    //   dd($dd);
+    //   $request = Request::create('/api/all_users', 'GET');
+    //   $response = Route::dispatch($request);
+    //   dd($response);
+    // }
 
     public function getAllUsers(){
       if(JWTAuth::user()->role_id === 1){
@@ -39,6 +68,103 @@ class AdminController extends Controller
         return response()->json(['message' => 'access_denied']);
       }
     }
+
+    public function approve_transaction(Request $request){
+      $transaction_id = $request->transaction_id;
+      $transaction = DB::table('transactions')->where('id', '=', $transaction_id)->first();
+
+      if($transaction->transaction_type == "deposited"){
+        $user=$transaction->user_to_id;
+      }
+      else if($transaction->transaction_type == "withdrawn"){
+        $user=$transaction->user_from_id;
+      }
+
+      $t=DB::table('transactions')
+            ->where(function($query) use ($user){
+                    $query->where('user_from_id',$user)
+                    ->whereIn('transaction_type',['withdrawn']);
+            })->orWhere('user_to_id',$user)
+            ->whereIn('transaction_type',['deposited'])
+            ->orderBy('transaction_date','desc')
+            ->first();
+
+      if($t!=""){
+        $balance=$t->balance;
+      }
+      else{
+        $balance=0;
+      }
+
+      if($transaction->transaction_type == "deposited"){
+    		$balance = $balance + $transaction->amount;
+    	}
+    	else if($transaction->transaction_type == "withdrawn"){
+		    $balance = $balance - $transaction->amount;
+    	}
+
+      if($transaction->transaction_status != "completed"){
+        $transaction_updated = DB::table('transactions')
+        ->where('id','=',$transaction->id)
+        ->update([
+          'balance' => $balance,
+          'transaction_status' => 'completed',
+          'last_updated_by' => JWTAuth::user()->id,
+          'last_updated_date' => date("Y-m-d H:i:s")
+        ]);
+      }
+
+      return redirect()->back();
+    }
+
+    public function decline_transaction(Request $request){
+      $transaction_id = $request->transaction_id;
+      $transaction = DB::table('transactions')->where('id', '=', $transaction_id)->first();
+
+      if($transaction->transaction_type == "deposited"){
+        $user=$transaction->user_to_id;
+      }
+      else if($transaction->transaction_type == "withdrawn"){
+        $user=$transaction->user_from_id;
+      }
+
+      $t=DB::table('transactions')
+            ->where(function($query) use ($user){
+                    $query->where('user_from_id',$user)
+                    ->whereIn('transaction_type',['withdrawn']);
+            })->orWhere('user_to_id',$user)
+            ->whereIn('transaction_type',['deposited'])
+            ->orderBy('transaction_date','desc')
+            ->first();
+
+      if($t!=""){
+        $balance=$t->balance;
+      }
+      else{
+        $balance=0;
+      }
+
+      if($transaction->transaction_type == "deposited"){
+    		$balance = $balance + $transaction->amount;
+    	}
+    	else if($transaction->transaction_type == "withdrawn"){
+		    $balance = $balance - $transaction->amount;
+    	}
+
+      if($transaction->transaction_status != "completed"){
+        $transaction_updated = DB::table('transactions')
+        ->where('id','=',$transaction->id)
+        ->update([
+          'balance' => $balance,
+          'transaction_status' => 'declined',
+          'last_updated_by' => JWTAuth::user()->id,
+          'last_updated_date' => date("Y-m-d H:i:s")
+        ]);
+      }
+      return redirect()->back();
+    }
+
+
 
     // public function doLogin(Request $request)
     // {

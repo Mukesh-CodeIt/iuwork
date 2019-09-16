@@ -22,3 +22,6 @@ Route::post('/admin/login','Admin\UserController@doLogin');
 Route::get('/admin/home','Admin\AdminController@index');
 
 Route::get('/admin/all_transactions','Admin\AdminController@all_transactions');
+// Route::get('/admin/all_users','Admin\AdminController@all_users');
+Route::post('/admin/approve_transaction','Admin\AdminController@approve_transaction');
+Route::post('/admin/decline_transaction','Admin\AdminController@decline_transaction');
