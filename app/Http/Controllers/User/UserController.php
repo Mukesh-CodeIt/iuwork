@@ -621,4 +621,17 @@ class UserController extends Controller
             return response()->json(['error' => 'Could not create token'], 500);
         }
     }
+
+    public function my_earnings(){
+      if(JWTAuth::check()){
+        $user_have=DB::table('transactions')->where('user_to_id', '=', JWTAuth::user()->id)->where('transaction_status', '=', 'completed')->sum('amount');
+        $user_spent=DB::table('transactions')->where('user_from_id', '=', JWTAuth::user()->id)->where('transaction_status', '=', 'completed')->sum('amount');
+        $earning_detail=$user_have-$user_spent;
+      }
+      else{
+        $earning_detail="0";
+      }
+
+      return response()->json(['my_earnings' => $earning_detail], 200);
+    }
   }
